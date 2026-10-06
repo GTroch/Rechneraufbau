@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rechneraufbau interaktiv</title>
+<style>
+:root{
+  --bg:#f4f1ea; --paper:#fffdf8; --ink:#1d2430; --muted:#5d6675; --line:#d8d2c4;
+  --accent:#d9480f; --accent-soft:#fde4d6; --ok:#2b8a3e; --ok-soft:#d3f0da; --bad:#c92a2a; --bad-soft:#fbe0e0;
+  --board:#2f6f4f; --board-dark:#24573e; --trace:#9fd3b4; --chip:#2a2f38; --metal:#b9c0c9; --metal-d:#8a939e;
+  --flow:#ffb347; --shadow:0 1px 2px rgba(0,0,0,.06),0 6px 24px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14171c; --paper:#1c2028; --ink:#e7e9ee; --muted:#9aa3b2; --line:#2e3440;
+    --accent:#ff7a3d; --accent-soft:#3a2418; --ok:#51cf66; --ok-soft:#1d3324; --bad:#ff6b6b; --bad-soft:#3a1f22;
+    --board:#24573e; --board-dark:#1b4430; --trace:#6fb08c; --chip:#0f1217; --metal:#7d8794; --metal-d:#5b6470;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 24px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14171c; --paper:#1c2028; --ink:#e7e9ee; --muted:#9aa3b2; --line:#2e3440;
+  --accent:#ff7a3d; --accent-soft:#3a2418; --ok:#51cf66; --ok-soft:#1d3324; --bad:#ff6b6b; --bad-soft:#3a1f22;
+  --board:#24573e; --board-dark:#1b4430; --trace:#6fb08c; --chip:#0f1217; --metal:#7d8794; --metal-d:#5b6470;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 24px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+header.hero{padding:48px 0 24px;border-bottom:1px solid var(--line)}
+.kicker{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(2rem,5vw,3.2rem);line-height:1.08;margin:.3em 0 .35em;letter-spacing:-.02em}
+.lead{max-width:62ch;color:var(--muted);font-size:1.08rem;margin:0}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+nav.toc a{color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.9rem;background:var(--paper)}
+nav.toc a:hover{border-color:var(--accent);color:var(--accent)}
+section{padding:40px 0;border-bottom:1px solid var(--line)}
+h2{font-size:1.6rem;margin:0 0 6px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 22px;max-width:70ch}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+
+/* Explorer */
+.explorer{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.explorer{grid-template-columns:1fr}}
+.diagram{padding:12px;position:sticky;top:12px}
+@media (max-width:900px){.diagram{position:static}}
+.diagram svg{width:100%;height:auto;display:block}
+.comp{cursor:pointer;outline:none}
+.comp .hl{fill:none;stroke:var(--accent);stroke-width:3;opacity:0;transition:opacity .2s}
+.comp:hover .hl,.comp:focus-visible .hl{opacity:.55}
+.comp.active .hl{opacity:1}
+.comp.dim{opacity:.35;transition:opacity .25s}
+.lbl{font:600 11px ui-monospace,Menlo,Consolas,monospace;fill:#fff;pointer-events:none}
+.lbl.dark{fill:var(--ink)}
+.trace{fill:none;stroke:var(--trace);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:.55}
+.trace.on{stroke:var(--flow);opacity:1;stroke-width:4;stroke-dasharray:6 8;animation:flow .6s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-14}}
+.spin{transform-box:fill-box;transform-origin:center;animation:rot 1.2s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chipbtn{font:inherit;font-size:.86rem;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:5px 12px;cursor:pointer}
+.chipbtn:hover{border-color:var(--accent)}
+.chipbtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.hint{font-size:.85rem;color:var(--muted);margin:8px 4px 0}
+
+.detail{padding:22px 22px 26px;min-height:420px}
+.detail .abbr{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+.detail h3{font-size:1.55rem;margin:.15em 0 .5em;line-height:1.15}
+.detail h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:20px 0 6px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.detail p{margin:.4em 0}
+.detail ul{margin:.3em 0;padding-left:1.2em}
+.detail li{margin:.25em 0}
+.facts{display:flex;flex-wrap:wrap;gap:8px}
+.fact{border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:.85rem;background:var(--bg)}
+.fact b{display:block;font-size:1rem}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 10px 10px 0;font-size:.93rem;margin-top:10px}
+.lab{margin-top:18px;border:1px dashed var(--line);border-radius:12px;padding:14px 16px;background:var(--bg)}
+.lab .labtitle{font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.lab .labtitle::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--accent);display:inline-block}
+.empty{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;height:100%;min-height:380px;color:var(--muted)}
+.empty .big{font-size:1.3rem;color:var(--ink);font-weight:600;margin-bottom:6px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.row label{font-size:.9rem}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select,button.btn{font:inherit;font-size:.9rem;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+button.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.btn:disabled{opacity:.5;cursor:default}
+.out{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9rem}
+.big-num{font-size:1.5rem;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace}
+.bar{height:14px;border-radius:7px;background:var(--line);overflow:hidden;position:relative}
+.bar > i{display:block;height:100%;background:var(--accent);border-radius:7px;transition:width .35s}
+.barrow{display:grid;grid-template-columns:110px 1fr 90px;gap:8px;align-items:center;font-size:.85rem;margin:5px 0}
+@media (max-width:480px){.barrow{grid-template-columns:80px 1fr 72px}}
+.stack{display:flex;height:34px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--paper)}
+.stack > div{height:100%;display:flex;align-items:center;justify-content:center;font-size:.72rem;color:#fff;white-space:nowrap;overflow:hidden;transition:width .3s}
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0}
+.stage{border:1px solid var(--line);border-radius:8px;padding:8px 6px;text-align:center;font-size:.8rem;background:var(--paper);transition:all .2s}
+.stage b{display:block;font-size:.9rem}
+.stage.on{background:var(--accent);color:#fff;border-color:var(--accent);transform:translateY(-2px)}
+.regs{display:flex;gap:8px;flex-wrap:wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem}
+.regs span{border:1px solid var(--line);border-radius:6px;padding:3px 8px;background:var(--paper)}
+canvas{width:100%;display:block;border-radius:8px;background:var(--paper);border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.tablewrap{overflow-x:auto}
+
+/* Data flow */
+.flowgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.flowgrid{grid-template-columns:1fr}}
+.steps{list-style:none;margin:0;padding:0}
+.steps li{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--paper);cursor:pointer;display:grid;grid-template-columns:32px 1fr;gap:10px;transition:border-color .2s,background .2s}
+.steps li .n{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--line);font-weight:700;font-size:.85rem}
+.steps li.cur{border-color:var(--accent);background:var(--accent-soft)}
+.steps li.cur .n{background:var(--accent);color:#fff}
+.steps li.done .n{background:var(--ok);color:#fff}
+.steps li b{display:block}
+.steps li span.t{font-size:.92rem;color:var(--muted)}
+.steps li.cur span.t{color:var(--ink)}
+
+/* Hierarchy */
+.hier{display:flex;flex-direction:column;align-items:center;gap:6px;margin:6px 0}
+.hier div{border-radius:8px;color:#fff;text-align:center;padding:8px 6px;font-size:.88rem}
+.hier small{display:block;opacity:.85;font-size:.75rem}
+
+/* Quiz */
+.quiz{padding:22px}
+.q{font-weight:600;font-size:1.1rem;margin:4px 0 14px}
+.opts{display:grid;gap:8px}
+.opt{text-align:left;font:inherit;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt.right{background:var(--ok-soft);border-color:var(--ok)}
+.opt.wrong{background:var(--bad-soft);border-color:var(--bad)}
+.opt:disabled{cursor:default}
+.fb{margin-top:12px;font-size:.95rem;min-height:1.5em}
+.progress{display:flex;gap:4px;margin-bottom:12px}
+.progress i{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.progress i.r{background:var(--ok)} .progress i.w{background:var(--bad)} .progress i.c{background:var(--accent)}
+footer{padding:28px 0 48px;color:var(--muted);font-size:.85rem}
+footer a{color:inherit}
+.themebtn{margin-left:auto}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">Grundwissen Informatik · Hardware</div>
+    <h1>Rechneraufbau – was steckt im Computer?</h1>
+    <p class="lead">Smartphone, Tablet oder Desktop-PC: Im Inneren arbeiten immer dieselben Grundbausteine zusammen. Am offenen Desktop-PC lassen sie sich am besten erkennen. Klicke dich durch die Komponenten, probiere die kleinen Experimente aus und teste am Ende dein Wissen.</p>
+    <div class="toolbar">
+      <nav class="toc" style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="#explorer">1 · Komponenten erkunden</a>
+        <a href="#datenfluss">2 · Zusammenspiel</a>
+        <a href="#speicher">3 · Speicherhierarchie</a>
+        <a href="#quiz">4 · Quiz</a>
+      </nav>
+      <button class="btn themebtn" id="themeBtn" type="button" aria-label="Hell/Dunkel umschalten">◐ Hell/Dunkel</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<section id="explorer">
+  <div class="wrap">
+    <h2>1 · Die Komponenten im offenen PC</h2>
+    <p class="sub">Klicke auf ein Bauteil im Schaubild (oder auf die Schaltflächen darunter). Rechts erscheinen Aufgabe, Funktionsweise, Kennwerte und ein kleines Experiment.</p>
+    <div class="explorer">
+      <div class="card diagram">
+        <svg id="pc" viewBox="0 0 600 520" role="img" aria-label="Schematischer Aufbau eines geöffneten Desktop-PCs">
+          <!-- Gehäuse -->
+          <rect x="6" y="6" width="588" height="508" rx="14" fill="var(--paper)" stroke="var(--line)" stroke-width="2"/>
+          <text x="20" y="506" class="lbl dark" style="font-size:10px;fill:var(--muted)">GEHÄUSE (SEITENANSICHT, GEÖFFNET)</text>
+
+          <!-- Motherboard -->
+          <g class="comp" data-id="board" tabindex="0" role="button" aria-label="Motherboard">
+            <rect x="26" y="26" width="384" height="462" rx="6" fill="var(--board)"/>
+            <g opacity=".25" stroke="#fff" stroke-width=".6">
+              <path d="M40 60 H120 V90 M40 200 H140 M260 470 V400 H380 M60 470 V455 H180 M380 60 V200 M370 230 H400"/>
+              <path d="M40 480 H140 M50 40 V200"/>
+            </g>
+            <!-- Chipsatz -->
+            <rect x="165" y="228" width="70" height="52" rx="4" fill="var(--chip)"/>
+            <text x="200" y="258" text-anchor="middle" class="lbl" style="font-size:9px">CHIPSATZ</text>
+            <!-- I/O Panel -->
+            <rect x="30" y="40" width="24" height="150" rx="2" fill="var(--metal-d)"/>
+            <text x="44" y="118" class="lbl" transform="rotate(-90 44 118)" text-anchor="middle" style="font-size:8px">I/O · USB · LAN</text>
+            <!-- leere Slots -->
+            <rect x="60" y="380" width="290" height="9" rx="2" fill="#1b1b1b" opacity=".75"/>
+            <text x="356" y="388" class="lbl" style="font-size:8px">PCIe</text>
+            <!-- SATA-Ports -->
+            <rect x="388" y="238" width="16" height="10" fill="#333"/><rect x="388" y="254" width="16" height="10" fill="#333"/>
+            <text x="368" y="282" class="lbl" style="font-size:8px">SATA</text>
+            <rect class="hl" x="23" y="23" width="390" height="468" rx="8"/>
+            <text x="300" y="478" class="lbl" style="font-size:11px">MOTHERBOARD</text>
+          </g>
+
+          <!-- Busleitungen -->
+          <g id="traces">
+            <path id="t-ram-cpu" class="trace" d="M288,120 H252"/>
+            <path id="t-cpu-chip" class="trace" d="M200,162 V228"/>
+            <path id="t-chip-ram" class="trace" d="M235,245 H312 V212"/>
+            <path id="t-cpu-gpu" class="trace" d="M158,162 V300"/>
+            <path id="t-chip-snd" class="trace" d="M235,268 H372 V436 H222"/>
+            <path id="t-hdd-chip" class="trace" d="M438,362 H396 V259 H235"/>
+            <path id="t-odd-chip" class="trace" d="M428,68 H416 V243 H404"/>
+          </g>
+
+          <!-- CPU -->
+          <g class="comp" data-id="cpu" tabindex="0" role="button" aria-label="Prozessor (CPU)">
+            <rect x="150" y="60" width="100" height="100" rx="6" fill="var(--metal)"/>
+            <circle cx="200" cy="110" r="40" fill="var(--metal-d)"/>
+            <g class="spin" id="cpuFan">
+              <path d="M200 110 L200 76 A10 10 0 0 1 214 84 Z M200 110 L234 110 A10 10 0 0 1 226 124 Z M200 110 L200 144 A10 10 0 0 1 186 136 Z M200 110 L166 110 A10 10 0 0 1 174 96 Z" fill="var(--chip)" opacity=".75"/>
+            </g>
+            <circle cx="200" cy="110" r="7" fill="var(--chip)"/>
+            <rect class="hl" x="146" y="56" width="108" height="108" rx="8"/>
+            <text x="200" y="56" dy="-4" text-anchor="middle" class="lbl" style="font-size:11px">CPU + KÜHLER</text>
+          </g>
+
+          <!-- RAM -->
+          <g class="comp" data-id="ram" tabindex="0" role="button" aria-label="Arbeitsspeicher (RAM)">
+            <rect x="288" y="48" width="10" height="166" rx="2" fill="#1b1b1b"/>
+            <rect x="304" y="48" width="10" height="166" rx="2" fill="#1b1b1b"/>
+            <rect x="320" y="48" width="10" height="166" rx="2" fill="#1b1b1b"/>
+            <rect x="336" y="48" width="10" height="166" rx="2" fill="#1b1b1b"/>
+            <g>
+              <rect x="286" y="52" width="14" height="158" rx="2" fill="#3b5bdb"/>
+              <rect x="318" y="52" width="14" height="158" rx="2" fill="#3b5bdb"/>
+              <g fill="#0b1a4a"><rect x="288" y="62" width="10" height="18"/><rect x="288" y="92" width="10" height="18"/><rect x="288" y="122" width="10" height="18"/><rect x="288" y="152" width="10" height="18"/><rect x="288" y="182" width="10" height="18"/>
+              <rect x="320" y="62" width="10" height="18"/><rect x="320" y="92" width="10" height="18"/><rect x="320" y="122" width="10" height="18"/><rect x="320" y="152" width="10" height="18"/><rect x="320" y="182" width="10" height="18"/></g>
+            </g>
+            <rect class="hl" x="282" y="44" width="68" height="174" rx="6"/>
+            <text x="316" y="40" text-anchor="middle" class="lbl" style="font-size:11px">RAM</text>
+          </g>
+
+          <!-- Grafikkarte -->
+          <g class="comp" data-id="gpu" tabindex="0" role="button" aria-label="Grafikkarte">
+            <rect x="56" y="300" width="300" height="56" rx="6" fill="#343a46"/>
+            <rect x="56" y="352" width="200" height="6" fill="#c9a227"/>
+            <circle cx="130" cy="328" r="22" fill="#222"/><circle cx="250" cy="328" r="22" fill="#222"/>
+            <g class="spin" style="animation-duration:.9s"><path d="M130 328 L130 310 L138 314 Z M130 328 L148 328 L144 336 Z M130 328 L130 346 L122 342 Z M130 328 L112 328 L116 320 Z" fill="#666"/></g>
+            <g class="spin" style="animation-duration:.9s"><path d="M250 328 L250 310 L258 314 Z M250 328 L268 328 L264 336 Z M250 328 L250 346 L242 342 Z M250 328 L232 328 L236 320 Z" fill="#666"/></g>
+            <text x="190" y="332" text-anchor="middle" class="lbl" style="font-size:10px">GPU</text>
+            <rect class="hl" x="52" y="296" width="308" height="66" rx="8"/>
+            <text x="300" y="320" class="lbl" style="font-size:10px">GRAFIK</text>
+          </g>
+
+          <!-- Soundkarte -->
+          <g class="comp" data-id="sound" tabindex="0" role="button" aria-label="Soundkarte">
+            <rect x="56" y="418" width="166" height="36" rx="4" fill="#6741d9"/>
+            <rect x="56" y="452" width="120" height="5" fill="#c9a227"/>
+            <rect x="70" y="426" width="28" height="18" rx="2" fill="#2b1a66"/>
+            <circle cx="120" cy="436" r="5" fill="#69db7c"/><circle cx="136" cy="436" r="5" fill="#74c0fc"/><circle cx="152" cy="436" r="5" fill="#ff8787"/>
+            <text x="166" y="440" class="lbl" style="font-size:9px">SOUND</text>
+            <rect class="hl" x="52" y="414" width="174" height="46" rx="6"/>
+          </g>
+
+          <!-- Optisches Laufwerk -->
+          <g class="comp" data-id="odd" tabindex="0" role="button" aria-label="CD/DVD-Laufwerk">
+            <rect x="428" y="40" width="152" height="56" rx="4" fill="var(--metal)"/>
+            <rect x="436" y="60" width="110" height="6" rx="3" fill="var(--metal-d)"/>
+            <circle cx="562" cy="76" r="4" fill="#40c057"/>
+            <text x="504" y="86" text-anchor="middle" class="lbl dark" style="font-size:9px;fill:#222">CD / DVD</text>
+            <rect class="hl" x="424" y="36" width="160" height="64" rx="6"/>
+          </g>
+
+          <!-- Festplatte -->
+          <g class="comp" data-id="hdd" tabindex="0" role="button" aria-label="Festplatte">
+            <rect x="438" y="320" width="134" height="88" rx="6" fill="var(--metal)"/>
+            <circle cx="494" cy="364" r="34" fill="#d9dde3" stroke="var(--metal-d)"/>
+            <g id="platter" class="spin" style="animation-duration:.6s"><circle cx="494" cy="364" r="34" fill="none"/><path d="M494 330 A34 34 0 0 1 528 364" stroke="#fff" stroke-width="3" fill="none" opacity=".8"/></g>
+            <circle cx="494" cy="364" r="6" fill="var(--metal-d)"/>
+            <path d="M556 398 L510 356" stroke="#333" stroke-width="4" stroke-linecap="round"/>
+            <circle cx="556" cy="398" r="6" fill="#333"/>
+            <rect class="hl" x="434" y="316" width="142" height="96" rx="8"/>
+            <text x="505" y="312" text-anchor="middle" class="lbl dark" style="font-size:10px">FESTPLATTE</text>
+          </g>
+
+          <!-- Netzteil (nur Deko) -->
+          <g opacity=".6">
+            <rect x="428" y="430" width="152" height="70" rx="6" fill="var(--metal-d)"/>
+            <circle cx="504" cy="465" r="24" fill="none" stroke="var(--metal)" stroke-width="2"/>
+            <text x="504" y="469" text-anchor="middle" class="lbl" style="font-size:9px">NETZTEIL</text>
+          </g>
+        </svg>
+        <div class="chips" id="compChips" aria-label="Komponenten"></div>
+        <p class="hint">Tipp: Die gelb gestrichelten Linien zeigen fließende Daten über die Bussysteme.</p>
+      </div>
+
+      <article class="card detail" id="detail" aria-live="polite">
+        <div class="empty">
+          <div class="big">← Wähle eine Komponente</div>
+          <p>Zum Beispiel den <b>Prozessor</b> – das „Gehirn“ des Rechners – oder die <b>Festplatte</b>, auf der alle Daten dauerhaft liegen.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="datenfluss">
+  <div class="wrap">
+    <h2>2 · Zusammenspiel: Was passiert beim Öffnen eines Programms?</h2>
+    <p class="sub">Keine Komponente arbeitet allein. Gehe Schritt für Schritt durch den Weg der Daten – das Schaubild markiert jeweils die beteiligten Bauteile und Busse.</p>
+    <div class="flowgrid">
+      <div class="card diagram" id="flowDiagramHost" style="padding:12px"></div>
+      <div>
+        <ol class="steps" id="steps"></ol>
+        <div class="row">
+          <button class="btn" id="prevStep" type="button">← Zurück</button>
+          <button class="btn primary" id="nextStep" type="button">Weiter →</button>
+          <button class="btn" id="autoStep" type="button">▶ Automatisch</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="speicher">
+  <div class="wrap">
+    <h2>3 · Speicherhierarchie: schnell & klein oder langsam & groß</h2>
+    <p class="sub">Warum gibt es überhaupt RAM <i>und</i> Festplatte? Weil schneller Speicher teuer ist und beim Abschalten seinen Inhalt verliert. Der Rechner kombiniert deshalb mehrere Speicherarten.</p>
+    <div class="flowgrid">
+      <div class="card" style="padding:18px">
+        <div class="hier">
+          <div style="width:30%;background:#c2255c">Register (in der CPU)<small>&lt; 1 ns · Bytes</small></div>
+          <div style="width:45%;background:#d9480f">Cache (in der CPU)<small>~1–10 ns · MB</small></div>
+          <div style="width:62%;background:#e67700">Arbeitsspeicher (RAM)<small>~60–100 ns · GB · flüchtig</small></div>
+          <div style="width:80%;background:#2b8a3e">SSD<small>~0,1 ms · GB–TB · dauerhaft</small></div>
+          <div style="width:100%;background:#1971c2">Festplatte (HDD)<small>~5–15 ms · TB · dauerhaft</small></div>
+        </div>
+        <p class="hint" style="text-align:center">oben: schneller, teurer, kleiner · unten: langsamer, günstiger, größer</p>
+      </div>
+      <div class="card" style="padding:18px">
+        <div class="labtitle" style="font-weight:700;margin-bottom:6px">Zeit-Vergleich in Menschenmaß</div>
+        <p style="margin-top:0;font-size:.93rem;color:var(--muted)">Stell dir vor, ein Zugriff auf den RAM dauert <b>1 Sekunde</b>. Wie lange dauern dann die anderen?</p>
+        <div id="humanScale"></div>
+        <div class="note">Genau deshalb wird ein Rechner so träge, wenn der RAM voll ist und er auf „virtuellen Speicher“ auf der Festplatte ausweichen muss.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quiz">
+  <div class="wrap">
+    <h2>4 · Teste dein Wissen</h2>
+    <p class="sub">Zehn Fragen zum Rechneraufbau. Nach jeder Antwort bekommst du eine kurze Erklärung.</p>
+    <div class="card quiz" id="quizBox"></div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><b>Grundlage:</b> Konitzer, Andreas: <i>Bestandteile eines Computers</i>. Landesmedienzentrum Baden-Württemberg, abgerufen am 02.03.2022, <a href="https://www.lmz-bw.de/medien-und-bildung/medienwissen/informatik-robotik/grundwissen-computer/bestandteile-eines-computers/">lmz-bw.de</a>. Lizenz: CC BY-SA 2.0 DE.</p>
+    <p>Diese interaktive Seite ist eine Bearbeitung des Textes: inhaltlich erweitert, um aktuelle Hinweise ergänzt (z. B. SSD, PCIe, Größenangaben in GB) und an zwei Stellen korrigiert (CD-Abtastrate 44,1 kHz, digitaler Audioanschluss S/PDIF). Sie steht ebenfalls unter <a href="https://creativecommons.org/licenses/by-sa/2.0/de/">CC BY-SA 2.0 DE</a>. Zahlenangaben sind typische Richtwerte.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+var $ = function(s,r){return (r||document).querySelector(s)};
+var $$ = function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+function fmt(n,d){return n.toLocaleString('de-DE',{maximumFractionDigits:d==null?1:d,minimumFractionDigits:0})}
+
+/* ---------- Theme ---------- */
+$('#themeBtn').addEventListener('click',function(){
+  var r=document.documentElement, cur=r.getAttribute('data-theme');
+  var sysDark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+  var isDark = cur ? cur==='dark' : sysDark;
+  r.setAttribute('data-theme', isDark?'light':'dark');
+});
+
+/* ---------- Inhalte ---------- */
+var C = {
+ cpu:{abbr:"Central Processing Unit · CPU",title:"Prozessor",
+  short:"Prozessor",
+  task:"Der Zentralprozessor ist das „Gehirn“ des Computers: Hier werden alle Programmbefehle interpretiert und ausgeführt, und er koordiniert die Abläufe aller anderen Komponenten. Er ist maßgeblich für die Rechengeschwindigkeit verantwortlich.",
+  how:["Die CPU arbeitet im <b>Takt</b>: Ein Taktgeber gibt viele Millionen bzw. Milliarden Mal pro Sekunde den Rhythmus vor. Die Taktfrequenz wird in <b>MHz</b> (Megahertz) bzw. <b>GHz</b> (Gigahertz) angegeben – 1 GHz = 1 Milliarde Takte pro Sekunde.",
+       "Jeder Befehl durchläuft einen Zyklus: <b>Holen</b> (aus dem Arbeitsspeicher), <b>Dekodieren</b> (verstehen, was zu tun ist), <b>Ausführen</b> (z. B. im Rechenwerk addieren) und <b>Zurückschreiben</b> des Ergebnisses.",
+       "Das <b>Steuerwerk</b> koordiniert diesen Ablauf, das <b>Rechenwerk</b> (ALU) rechnet, und winzige, extrem schnelle Speicherplätze – die <b>Register</b> – halten die gerade benötigten Werte.",
+       "Weil dabei viel Wärme entsteht, sitzt auf der CPU immer ein <b>Kühler</b> mit Lüfter."],
+  facts:[["Taktfrequenz","GHz"],["Kerne","heute 4–24"],["Sitzt im","Sockel auf dem Mainboard"]],
+  today:"Die Taktfrequenz allein sagt heute wenig über die Leistung aus. Moderne CPUs haben mehrere <b>Kerne</b> (jeder ist praktisch ein eigener Prozessor) und erledigen pro Takt mehrere Befehle gleichzeitig. Ein 3-GHz-Prozessor von heute ist daher viel schneller als einer von 2005.",
+  lab:"cpu"},
+ ram:{abbr:"Random Access Memory · RAM",title:"Arbeitsspeicher",short:"Arbeitsspeicher",
+  task:"Der Arbeitsspeicher ist das „Kurzzeitgedächtnis“ des Computers. Hier liegen alle Daten und Programme, mit denen der Rechner <i>gerade</i> arbeitet – das Betriebssystem, der geöffnete Browser, das Dokument, das du bearbeitest.",
+  how:["„Random Access“ heißt <b>wahlfreier Zugriff</b>: Jede Speicherzelle kann direkt und gleich schnell angesprochen werden – anders als bei einer Festplatte, deren Lesekopf erst an die richtige Stelle fahren muss.",
+       "RAM ist <b>flüchtig</b>: Beim Ausschalten geht sein Inhalt verloren. Deshalb muss alles, was erhalten bleiben soll, auf der Festplatte gespeichert werden.",
+       "Ist nicht genug RAM physikalisch vorhanden, nimmt der Rechner <b>„virtuellen Speicher“</b> auf der Festplatte hinzu (Auslagerungsdatei). Da die Festplatte um ein Vielfaches langsamer ist, verlangsamen sich Arbeitsprozesse – besonders bei Video- und Audiobearbeitung kommt es zu „Ruckelbildern“ und Aussetzern.",
+       "Die Rechnergeschwindigkeit hängt deshalb stark von der Größe des verfügbaren RAM ab. Aufrüsten lohnt sich oft."],
+  facts:[["Größe","GB (früher MB)"],["Typ heute","DDR4 / DDR5"],["Speicherung","flüchtig"]],
+  today:"Im Originaltext wird die Größe in Megabyte (MB) angegeben. Heute sind Gigabyte üblich: 8 GB reichen für Büroarbeit, 16 GB sind ein guter Standard, für Videoschnitt oder Spiele sind 32 GB sinnvoll.",
+  lab:"ram"},
+ board:{abbr:"Hauptplatine · Mainboard",title:"Motherboard mit Bussystemen und Schnittstellen",short:"Motherboard",
+  task:"Auf dem Motherboard (der Hauptplatine) laufen alle Komponenten zusammen: Hier sitzen CPU und RAM, und hier befinden sich die Steckplätze für Erweiterungskarten wie Grafik- oder Soundkarte sowie die Anschlüsse für Laufwerke.",
+  how:["Die <b>Bussysteme</b> sind die „Datenautobahnen“ des Rechners. Über Leiterbahnen auf der Platine wird z. B. der Prozessor mit Daten und Programmbefehlen aus dem Arbeitsspeicher versorgt.",
+       "Von der Leistungsfähigkeit der Bussysteme hängt auch die Geschwindigkeit des Rechners ab: Der schnellste Prozessor nützt nichts, wenn die Daten nicht schnell genug ankommen.",
+       "Der <b>Chipsatz</b> verwaltet den Datenverkehr zwischen CPU, Speicher, Laufwerken und Schnittstellen.",
+       "<b>Interne Schnittstellen</b> verbinden Erweiterungskarten und Laufwerke: <b>PCI</b> für Grafik- und Soundkarten, später <b>AGP</b> speziell für schnellere Grafikkarten. Beide wurden durch <b>PCI-Express (PCIe)</b> mit sehr großen Übertragungsraten abgelöst. Festplatten werden über <b>Serial-ATA (SATA)</b> angeschlossen; früher war die parallele <b>ATA-Schnittstelle (IDE/EIDE)</b> üblich.",
+       "<b>Externe Schnittstellen</b> (USB, Netzwerk, Monitor- und Audioanschlüsse) befinden sich gesammelt an der Rückseite des Boards."],
+  facts:[["Datenwege","Bussysteme"],["Karten","PCI → AGP → PCIe"],["Laufwerke","PATA (IDE) → SATA"]],
+  today:"Aktuelle Boards haben keine AGP-Steckplätze mehr und PCI nur noch selten. Sehr schnelle SSDs werden häufig direkt über PCIe in einem kleinen <b>M.2</b>-Steckplatz angeschlossen.",
+  lab:"board"},
+ hdd:{abbr:"Hard Disk Drive · HDD",title:"Festplatte",short:"Festplatte",
+  task:"Die Festplatte ist der Speicher für alle Daten, die erhalten bleiben sollen, auch wenn der Computer abgeschaltet wird: Betriebssystem, Programme, Dokumente, Fotos. Sie ist das „Langzeitgedächtnis“.",
+  how:["Eine Festplatte besteht aus einer oder mehreren <b>rotierenden Magnetscheiben</b>, die sich mit <b>5.400 bis 15.000 Umdrehungen pro Minute</b> drehen.",
+       "Ein <b>Schreib-/Lesekopf</b> schwebt auf einem hauchdünnen Luftpolster über der Scheibe und magnetisiert winzige Bereiche (Bit = 0 oder 1) bzw. liest sie aus.",
+       "Bevor Daten gelesen werden können, muss der Kopf zur richtigen Spur fahren und warten, bis die gesuchte Stelle vorbeirotiert. Diese mechanischen Wege machen die Festplatte viel langsamer als den RAM.",
+       "Die Kapazität wird in <b>Gigabyte (GB)</b> bzw. heute meist <b>Terabyte (TB)</b> angegeben. Interne Platten hängen am SATA-Anschluss, externe werden über <b>USB</b> (früher auch FireWire) angeschlossen."],
+  facts:[["Kapazität","GB / TB"],["Drehzahl","5.400–15.000 U/min"],["Speicherung","dauerhaft, magnetisch"]],
+  today:"In vielen Rechnern ersetzt heute eine <b>SSD</b> (Solid State Drive) die Festplatte. Sie speichert Daten in Flash-Chips ohne bewegliche Teile und ist dadurch etwa 50- bis 100-mal schneller beim Zugriff, leise und stoßfest. HDDs sind aber pro Terabyte günstiger und werden für große Datenmengen weiter genutzt.",
+  lab:"hdd"},
+ gpu:{abbr:"Graphics Card · GPU",title:"Grafikkarte",short:"Grafikkarte",
+  task:"Die Grafikkarte berechnet das Bild, das auf dem Monitor erscheint. Von ihr hängen die mögliche Bildauflösung und die Farbtiefe ab.",
+  how:["Für jedes Bild legt die Grafikkarte im eigenen <b>Grafikspeicher</b> fest, welche Farbe jeder einzelne Bildpunkt (Pixel) hat, und sendet das Bild viele Male pro Sekunde an den Monitor.",
+       "Für normale Büroarbeit genügen alle heutigen Grafikkarten. <b>Computerspiele</b> stellen viel höhere Ansprüche: Die möglichst realistische Darstellung künstlicher 3-D-Welten hat zu einer rasanten Weiterentwicklung geführt.",
+       "Spezielle <b>GPUs</b> (Graphics Processing Units) übernehmen die Grafikberechnung und entlasten die CPU. Eine GPU hat tausende kleine Rechenkerne, die viele Pixel gleichzeitig berechnen können. Schneller Grafikspeicher erhöht die Verarbeitungsgeschwindigkeit.",
+       "Sollen Videos von Camcordern eingespielt (Video-Digitalisierung) oder Fernsehbilder empfangen werden (TV-Tuner), braucht man passende Ein- und Ausgänge bzw. Zusatzkarten."],
+  facts:[["Kennwerte","Auflösung, Farbtiefe"],["Rechenchip","GPU"],["Steckplatz","PCIe (früher AGP)"]],
+  today:"Viele Prozessoren haben heute eine Grafikeinheit bereits eingebaut („Onboard-“ bzw. integrierte Grafik). Eine separate Grafikkarte lohnt sich vor allem für Spiele, Videoschnitt und KI-Anwendungen – denn GPUs sind auch für solche Massenberechnungen ideal.",
+  lab:"gpu"},
+ sound:{abbr:"Audio",title:"Soundkarte",short:"Soundkarte",
+  task:"Mit der Soundkarte kann der Computer Sprache und Musik aufnehmen und wiedergeben. Sie wandelt zwischen analogen Schallsignalen (Mikrofon, Lautsprecher) und digitalen Zahlen um.",
+  how:["Bei der <b>Aufnahme</b> misst die Soundkarte die Spannung des Mikrofonsignals in sehr kurzen Abständen und speichert jeden Messwert als Zahl (Analog-Digital-Wandlung). Bei der <b>Wiedergabe</b> läuft es umgekehrt.",
+       "Die <b>Samplingfrequenz</b> gibt an, wie oft pro Sekunde gemessen wird. Eine Audio-CD nutzt <b>44,1 kHz</b>, also 44.100 Messungen pro Sekunde.",
+       "Die <b>Bittiefe</b> gibt an, wie fein jeder Messwert abgestuft ist: 16 Bit ergeben 65.536 Stufen – das entspricht HiFi- bzw. CD-Qualität.",
+       "Oft sind die Soundfunktionen schon <b>onboard</b> auf dem Motherboard integriert. Das genügt, wenn keine besonderen Ansprüche an die Klangqualität gestellt werden.",
+       "Anschlüsse: analog über <b>Klinkenstecker</b>, <b>Cinch-Buchsen</b> oder <b>MIDI</b> (für Musikinstrumente), digital z. B. über <b>S/PDIF</b>."],
+  facts:[["Samplingrate","kHz (CD: 44,1)"],["Bittiefe","Bit (CD: 16)"],["Oft","onboard integriert"]],
+  today:"Im Originaltext steht 41 kHz für die CD – richtig sind 44,1 kHz. Der digitale Anschluss heißt S/PDIF. Heute ist Sound fast immer onboard; separate Karten oder externe USB-Audio-Interfaces nutzen vor allem Musiker.",
+  lab:"sound"},
+ odd:{abbr:"Optical Disc Drive",title:"CD-ROM- / DVD-Laufwerk",short:"CD/DVD-Laufwerk",
+  task:"Optische Laufwerke lesen und beschreiben CDs und DVDs. Diese Scheiben speichern Daten optisch, also mit Licht.",
+  how:["Ein <b>Laser</b> tastet die spiralförmige Datenspur der rotierenden Scheibe ab. Winzige Vertiefungen (Pits) und Flächen (Lands) reflektieren das Licht unterschiedlich – daraus entstehen die Bits.",
+       "Eine <b>DVD</b> hat eine größere Datendichte als eine CD (feinere Spur, Laser mit kürzerer Wellenlänge), kann <b>zwei Datenschichten</b> (Layer) übereinander haben und auch <b>beidseitig</b> beschrieben sein.",
+       "Speicherplatz: <b>CD 700 MB</b>, <b>DVD 4,7 bis 17 GB</b> je nach Typ.",
+       "Es gibt <b>einmal beschreibbare</b> Rohlinge (CD-R, DVD-R/DVD+R) und <b>wiederbeschreibbare</b> (CD-RW, DVD-RW/DVD+RW).",
+       "Bei DVDs konkurrieren der <b>Plus- und der Minus-Standard</b>. Beim Kauf von Rohlingen musste man darauf achten, welchen Standard der Brenner beherrscht."],
+  facts:[["CD","700 MB"],["DVD","4,7–17 GB"],["Verfahren","optisch (Laser)"]],
+  today:"Optische Laufwerke sind heute selten geworden; Daten werden über USB-Sticks, das Internet und Cloud-Speicher ausgetauscht. Der Nachfolger <b>Blu-ray</b> speichert mit blauem Laser 25–100 GB. Moderne Brenner beherrschen meist beide DVD-Standards („DVD±RW“).",
+  lab:"odd"}
+};
+var ORDER=["cpu","ram","board","hdd","gpu","sound","odd"];
+var TRACES_FOR={cpu:["t-ram-cpu","t-cpu-chip","t-cpu-gpu"],ram:["t-ram-cpu","t-chip-ram"],board:["t-ram-cpu","t-cpu-chip","t-chip-ram","t-cpu-gpu","t-chip-snd","t-hdd-chip","t-odd-chip"],hdd:["t-hdd-chip","t-chip-ram"],gpu:["t-cpu-gpu"],sound:["t-chip-snd"],odd:["t-odd-chip","t-chip-ram"]};
+
+/* ---------- Explorer ---------- */
+var svg=$('#pc');
+var chipsBox=$('#compChips');
+ORDER.forEach(function(id){
+  var b=document.createElement('button');b.className='chipbtn';b.type='button';b.textContent=C[id].short;b.dataset.id=id;b.setAttribute('aria-pressed','false');
+  b.addEventListener('click',function(){select(id)});chipsBox.appendChild(b);
+});
+$$('.comp',svg).forEach(function(g){
+  g.addEventListener('click',function(e){e.stopPropagation();select(g.dataset.id)});
+  g.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();select(g.dataset.id)}});
+});
+function setTraces(root,ids){$$('.trace',root).forEach(function(p){p.classList.toggle('on',ids.indexOf(p.id.replace(/^f-/,''))>-1)})}
+var labCleanup=null;
+function select(id){
+  $$('.comp',svg).forEach(function(g){g.classList.toggle('active',g.dataset.id===id)});
+  $$('.chipbtn',chipsBox).forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.id===id))});
+  setTraces(svg,TRACES_FOR[id]||[]);
+  var c=C[id], d=$('#detail');
+  if(labCleanup){labCleanup();labCleanup=null}
+  d.innerHTML='<div class="abbr">'+c.abbr+'</div><h3>'+c.title+'</h3>'+
+   '<h4>Aufgabe</h4><p>'+c.task+'</p>'+
+   '<h4>So funktioniert’s</h4><ul>'+c.how.map(function(h){return '<li>'+h+'</li>'}).join('')+'</ul>'+
+   '<h4>Kennwerte</h4><div class="facts">'+c.facts.map(function(f){return '<div class="fact">'+f[0]+'<b>'+f[1]+'</b></div>'}).join('')+'</div>'+
+   '<div class="note"><b>Heute:</b> '+c.today+'</div>'+
+   '<div class="lab" id="lab"></div>';
+  labCleanup = LABS[c.lab]($('#lab'))||null;
+  if(window.innerWidth<900){d.scrollIntoView({behavior:'smooth',block:'start'})}
+}
+
+/* ---------- Experimente ---------- */
+var LABS={};
+
+LABS.cpu=function(el){
+  el.innerHTML='<div class="labtitle">Experiment: Takt & Befehlszyklus</div>'+
+  '<label for="ghz">Taktfrequenz: <b id="ghzV"></b></label><input type="range" id="ghz" min="0.1" max="5.5" step="0.1" value="3.5">'+
+  '<div class="out" id="ghzOut"></div>'+
+  '<p style="margin:12px 0 4px;font-size:.92rem">Der Prozessor führt das Programm <span class="mono">a = 3 + 4</span> aus – in Zeitlupe:</p>'+
+  '<div class="pipeline">'+["Holen|aus RAM","Dekodieren|Befehl verstehen","Ausführen|im Rechenwerk","Zurückschreiben|Ergebnis sichern"].map(function(s,i){var p=s.split('|');return '<div class="stage" data-i="'+i+'"><b>'+p[0]+'</b>'+p[1]+'</div>'}).join('')+'</div>'+
+  '<div class="regs"><span>Befehl: <b id="rI">–</b></span><span>Register A: <b id="rA">–</b></span><span>Register B: <b id="rB">–</b></span><span>RAM[a]: <b id="rM">–</b></span></div>'+
+  '<div class="row" style="margin-top:10px"><button class="btn primary" id="stepCpu" type="button">Nächster Schritt</button><button class="btn" id="resetCpu" type="button">Neu starten</button></div>'+
+  '<div class="out" id="cpuMsg" style="margin-top:6px"></div>';
+  var s=$('#ghz',el);
+  function upd(){var g=+s.value;$('#ghzV',el).textContent=fmt(g)+' GHz';
+    $('#ghzOut',el).innerHTML='= <b>'+fmt(g*1000,0)+' Mio.</b> Takte pro Sekunde · ein Takt dauert <b>'+fmt(1/g,3)+' ns</b> (Milliardstel Sekunden).<br>In der Zeit, in der Licht 1 Meter zurücklegt (3,3 ns), vergehen <b>'+fmt(3.336*g,1)+'</b> Takte.';
+    $('#cpuFan').style.animationDuration=(2.2/g)+'s';}
+  s.addEventListener('input',upd);upd();
+  var prog=[
+    {st:0,i:'LOAD A, 3',a:'–',b:'–',m:'–',msg:'Holen: Das Steuerwerk holt den ersten Befehl „LOAD A, 3“ aus dem Arbeitsspeicher.'},
+    {st:1,i:'LOAD A, 3',a:'–',b:'–',m:'–',msg:'Dekodieren: „Lade die Zahl 3 in Register A.“'},
+    {st:2,i:'LOAD A, 3',a:'3',b:'–',m:'–',msg:'Ausführen: Register A enthält jetzt 3. Danach wird genauso B = 4 geladen.'},
+    {st:0,i:'ADD A, B',a:'3',b:'4',m:'–',msg:'Holen: Nächster Befehl „ADD A, B“ (B wurde zuvor mit 4 geladen).'},
+    {st:1,i:'ADD A, B',a:'3',b:'4',m:'–',msg:'Dekodieren: „Addiere B zu A.“ Das Rechenwerk (ALU) wird angesteuert.'},
+    {st:2,i:'ADD A, B',a:'7',b:'4',m:'–',msg:'Ausführen: Die ALU rechnet 3 + 4 = 7.'},
+    {st:3,i:'STORE A → a',a:'7',b:'4',m:'7',msg:'Zurückschreiben: Das Ergebnis 7 wird in den Arbeitsspeicher geschrieben. Fertig! Bei 3,5 GHz dauert so etwas nur wenige Nanosekunden.'}
+  ];
+  var k=-1;
+  function show(){$$('.stage',el).forEach(function(x){x.classList.toggle('on',k>=0&&+x.dataset.i===prog[k].st)});
+    var p=k>=0?prog[k]:{i:'–',a:'–',b:'–',m:'–',msg:'Klicke auf „Nächster Schritt“.'};
+    $('#rI',el).textContent=p.i;$('#rA',el).textContent=p.a;$('#rB',el).textContent=p.b;$('#rM',el).textContent=p.m;$('#cpuMsg',el).textContent=p.msg;
+    $('#stepCpu',el).disabled=k>=prog.length-1;}
+  $('#stepCpu',el).addEventListener('click',function(){if(k<prog.length-1){k++;show()}});
+  $('#resetCpu',el).addEventListener('click',function(){k=-1;show()});show();
+  return function(){$('#cpuFan').style.animationDuration=''};
+};
+
+LABS.ram=function(el){
+  var apps=[["Betriebssystem",3,"#495057",true],["Browser (20 Tabs)",3,"#1971c2"],["Textverarbeitung",1,"#2b8a3e"],["Musik-Streaming",0.5,"#7048e8"],["Bildbearbeitung",4,"#e67700"],["Videoschnitt (4K)",10,"#c2255c"],["Computerspiel",8,"#0c8599"]];
+  el.innerHTML='<div class="labtitle">Experiment: Wann wird der RAM knapp?</div>'+
+  '<div class="row"><label for="ramSize">Eingebauter RAM:</label><select id="ramSize"><option>4</option><option selected>8</option><option>16</option><option>32</option></select> GB</div>'+
+  '<div style="font-size:.9rem;margin:6px 0">Programme öffnen:</div><div class="chips" id="appChips"></div>'+
+  '<div style="margin-top:12px" class="stack" id="ramStack"></div>'+
+  '<div class="out" id="ramOut" style="margin-top:8px"></div>'+
+  '<div class="barrow" style="margin-top:6px"><span>Tempo</span><div class="bar"><i id="speedBar"></i></div><span id="speedTxt" class="out"></span></div>';
+  var on=[true,true,false,false,false,false,false];
+  var box=$('#appChips',el);
+  apps.forEach(function(a,i){var b=document.createElement('button');b.type='button';b.className='chipbtn';b.textContent=a[0]+' · '+fmt(a[1])+' GB';
+    b.setAttribute('aria-pressed',String(on[i]));if(a[3]){b.disabled=true;b.title='läuft immer'}
+    b.addEventListener('click',function(){on[i]=!on[i];b.setAttribute('aria-pressed',String(on[i]));upd()});box.appendChild(b)});
+  $('#ramSize',el).addEventListener('change',upd);
+  function upd(){var size=+$('#ramSize',el).value,used=0,html='';
+    var total=0;apps.forEach(function(a,i){if(on[i])total+=a[1]});
+    var scale=Math.max(size,total);
+    apps.forEach(function(a,i){if(on[i]){html+='<div style="width:'+(a[1]/scale*100)+'%;background:'+a[2]+'" title="'+a[0]+'">'+(a[1]/scale>.09?a[0].split(' ')[0]:'')+'</div>';used+=a[1]}});
+    if(used<size)html+='<div style="flex:1;color:var(--muted)">frei</div>';
+    var st=$('#ramStack',el);st.innerHTML=html;
+    st.style.background= used>size ? 'linear-gradient(90deg,transparent '+(size/scale*100)+'%,var(--bad-soft) 0)' : 'var(--paper)';
+    st.style.borderColor= used>size?'var(--bad)':'var(--line)';
+    var over=used-size, speed;
+    if(over<=0){speed=100;$('#ramOut',el).innerHTML='Belegt: <b>'+fmt(used)+' von '+size+' GB</b> – alles passt in den schnellen Arbeitsspeicher. ✓';}
+    else{speed=Math.max(4,Math.round(100*size/used*0.35));
+      $('#ramOut',el).innerHTML='<span style="color:var(--bad)">Belegt: <b>'+fmt(used)+' GB</b>, aber nur '+size+' GB vorhanden!</span> <b>'+fmt(over)+' GB</b> werden als virtueller Speicher auf die Festplatte <b>ausgelagert</b>. Programme reagieren träge, Videos ruckeln.';}
+    $('#speedBar',el).style.width=speed+'%';$('#speedBar',el).style.background=speed>60?'var(--ok)':'var(--bad)';
+    $('#speedTxt',el).textContent=speed>60?'flüssig':'stockt';
+  }
+  upd();
+};
+
+LABS.board=function(el){
+  var buses=[["PATA (IDE)",133,"Laufwerke, alt"],["PCI",133,"Erweiterungskarten, alt"],["SATA III",600,"Festplatten, SSD"],["AGP 8x",2133,"Grafikkarten, alt"],["USB 3.2 Gen 2",1250,"externe Geräte"],["PCIe 3.0 x16",15750,"Grafikkarte"],["PCIe 4.0 x16",31500,"Grafikkarte"],["PCIe 5.0 x16",63000,"Grafikkarte, SSD"]];
+  el.innerHTML='<div class="labtitle">Vergleich: Wie schnell sind die Datenwege?</div>'+
+  '<p style="margin:0 0 8px;font-size:.9rem;color:var(--muted)">Maximale Übertragungsrate in Megabyte pro Sekunde (logarithmische Skala – jede Stufe ist 10-mal so viel).</p>'+
+  '<div id="busBars"></div>'+
+  '<div class="row" style="margin-top:10px"><label for="fileGB">Wie lange dauert die Übertragung von</label><select id="fileGB"><option value="0.7">einer CD (700 MB)</option><option value="4.7" selected>einer DVD (4,7 GB)</option><option value="50">einem 50-GB-Spiel</option></select>?</div>'+
+  '<div id="busTimes" class="out"></div>'+
+  '<p class="hint">Theoretische Höchstwerte; in der Praxis bremst oft das langsamste Glied der Kette, z. B. die Festplatte selbst.</p>';
+  var max=Math.log10(100000), min=Math.log10(50);
+  $('#busBars',el).innerHTML=buses.map(function(b){var w=(Math.log10(b[1])-min)/(max-min)*100;
+    return '<div class="barrow"><span title="'+b[2]+'">'+b[0]+'</span><div class="bar"><i style="width:'+w+'%"></i></div><span class="out">'+fmt(b[1],0)+' MB/s</span></div>'}).join('');
+  function t(){var gb=+$('#fileGB',el).value;
+    $('#busTimes',el).innerHTML=buses.filter(function(b,i){return [0,2,6].indexOf(i)>-1}).map(function(b){var s=gb*1000/b[1];
+      return b[0]+': <b>'+(s>=60?fmt(s/60,1)+' min':fmt(s,s<1?2:1)+' s')+'</b>'}).join(' · ');}
+  $('#fileGB',el).addEventListener('change',t);t();
+};
+
+LABS.hdd=function(el){
+  el.innerHTML='<div class="labtitle">Experiment: Drehzahl und Wartezeit</div>'+
+  '<div class="row" id="rpmBtns"></div>'+
+  '<div class="row" style="align-items:center;gap:20px">'+
+   '<svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true"><circle cx="60" cy="60" r="54" fill="var(--metal)"/><g id="labPlatter" class="spin"><circle cx="60" cy="60" r="48" fill="#d9dde3"/><circle cx="60" cy="60" r="36" fill="none" stroke="#c0c6cf"/><circle cx="60" cy="60" r="24" fill="none" stroke="#c0c6cf"/><rect x="58" y="12" width="4" height="10" fill="var(--accent)"/></g><circle cx="60" cy="60" r="7" fill="var(--metal-d)"/><path d="M110 108 L66 26" stroke="#333" stroke-width="5" stroke-linecap="round"/></svg>'+
+   '<div style="flex:1;min-width:180px"><div class="out" id="rpmOut"></div></div></div>'+
+  '<p style="font-size:.88rem;color:var(--muted);margin:6px 0 0">Die Animation ist stark verlangsamt (1 : 2.000). Der orange Datenblock muss erst unter dem Lesekopf vorbeikommen – im Schnitt dauert das eine halbe Umdrehung.</p>';
+  var rpms=[5400,7200,10000,15000],cur=7200,box=$('#rpmBtns',el);
+  rpms.forEach(function(r){var b=document.createElement('button');b.type='button';b.className='chipbtn';b.textContent=fmt(r,0)+' U/min';b.dataset.r=r;b.addEventListener('click',function(){cur=r;upd()});box.appendChild(b)});
+  function upd(){$$('.chipbtn',box).forEach(function(b){b.setAttribute('aria-pressed',String(+b.dataset.r===cur))});
+    var rev=60000/cur, lat=rev/2;
+    $('#labPlatter',el).style.animationDuration=(rev*2000/1000)+'s';
+    $('#platter').style.animationDuration=(rev*2000/1000/20)+'s';
+    $('#rpmOut',el).innerHTML='<div>'+fmt(cur/60,0)+' Umdrehungen pro Sekunde</div><div>1 Umdrehung: <b>'+fmt(rev,2)+' ms</b></div><div>Ø Wartezeit (halbe Umdrehung): <span class="big-num">'+fmt(lat,2)+' ms</span></div><div style="margin-top:6px">+ Kopfbewegung ≈ 4–9 ms</div><div style="margin-top:6px;color:var(--muted)">Zum Vergleich: RAM ≈ 0,0001 ms, SSD ≈ 0,1 ms</div>';}
+  upd();
+  return function(){$('#platter').style.animationDuration=''};
+};
+
+LABS.gpu=function(el){
+  var res=[["HD 1280 × 720",1280,720],["Full HD 1920 × 1080",1920,1080],["WQHD 2560 × 1440",2560,1440],["4K 3840 × 2160",3840,2160]];
+  var depth=[[1,"1 Bit · Schwarz/Weiß"],[8,"8 Bit · 256 Farben"],[16,"16 Bit · High Color"],[24,"24 Bit · True Color"]];
+  el.innerHTML='<div class="labtitle">Experiment: Auflösung & Farbtiefe</div>'+
+  '<div class="row"><label for="res">Auflösung</label><select id="res">'+res.map(function(r,i){return '<option value="'+i+'"'+(i==1?' selected':'')+'>'+r[0]+'</option>'}).join('')+'</select>'+
+  '<label for="dep">Farbtiefe</label><select id="dep">'+depth.map(function(d,i){return '<option value="'+i+'"'+(i==3?' selected':'')+'>'+d[1]+'</option>'}).join('')+'</select>'+
+  '<label for="fps">Bilder/s</label><select id="fps"><option>30</option><option selected>60</option><option>144</option></select></div>'+
+  '<canvas id="gpuCv" width="480" height="150" aria-label="Farbverlauf in gewählter Farbtiefe"></canvas>'+
+  '<div class="out" id="gpuOut" style="margin-top:8px"></div>';
+  var cv=$('#gpuCv',el),ctx=cv.getContext('2d');
+  function quant(v,bits){var l=Math.pow(2,bits)-1;return Math.round(Math.round(v/255*l)/l*255)}
+  function draw(bitsTotal){var w=cv.width,h=cv.height,img=ctx.createImageData(w,h),d=img.data;
+    var per = bitsTotal===24?8: bitsTotal===16?5: bitsTotal===8?2.67:0;
+    for(var y=0;y<h;y++)for(var x=0;x<w;x++){var i=(y*w+x)*4;
+      var hue=x/w*360,l=1-y/h*0.85;var c=hsl(hue,.85,.15+.6*l);
+      if(bitsTotal===1){var g=(c[0]+c[1]+c[2])/3>110?255:0;c=[g,g,g]}
+      else{var bR=bitsTotal===8?3:Math.round(per),bG=bitsTotal===8?3:(bitsTotal===16?6:8),bB=bitsTotal===8?2:Math.round(per);c=[quant(c[0],bR),quant(c[1],bG),quant(c[2],bB)]}
+      d[i]=c[0];d[i+1]=c[1];d[i+2]=c[2];d[i+3]=255}
+    ctx.putImageData(img,0,0);}
+  function hsl(h,s,l){var k=function(n){return (n+h/30)%12},a=s*Math.min(l,1-l),f=function(n){return 255*(l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1))))};return [f(0),f(8),f(4)]}
+  function upd(){var r=res[+$('#res',el).value],dp=depth[+$('#dep',el).value][0],fps=+$('#fps',el).value;
+    var px=r[1]*r[2],bytes=px*dp/8,colors=Math.pow(2,dp);
+    draw(dp);
+    $('#gpuOut',el).innerHTML='Bildpunkte: <b>'+fmt(px,0)+'</b> · Farben: <b>'+(colors>1e6?fmt(colors/1e6,1)+' Mio.':fmt(colors,0))+'</b><br>Speicher für <i>ein</i> Bild: <b>'+fmt(bytes/1048576,2)+' MB</b> · bei '+fps+' Bildern/s: <b>'+fmt(bytes*fps/1073741824,2)+' GB pro Sekunde</b><br><span style="color:var(--muted)">Bei 3-D-Spielen muss die GPU jedes dieser Pixel zusätzlich mit Licht, Schatten und Texturen berechnen.</span>';}
+  ['res','dep','fps'].forEach(function(id){$('#'+id,el).addEventListener('change',upd)});upd();
+};
+
+LABS.sound=function(el){
+  var rates=[[8000,"8 kHz · Telefon"],[22050,"22,05 kHz · Radio-Qualität"],[44100,"44,1 kHz · Audio-CD"],[48000,"48 kHz · Video/DVD"],[96000,"96 kHz · Studio"]];
+  var bits=[[4,"4 Bit · 16 Stufen"],[8,"8 Bit · 256 Stufen"],[16,"16 Bit · 65.536 Stufen (CD)"],[24,"24 Bit · 16,7 Mio. Stufen"]];
+  el.innerHTML='<div class="labtitle">Experiment: Vom Schall zur Zahl (Digitalisierung)</div>'+
+  '<div class="row"><label for="sr">Samplingfrequenz</label><select id="sr">'+rates.map(function(r,i){return '<option value="'+i+'"'+(i==2?' selected':'')+'>'+r[1]+'</option>'}).join('')+'</select></div>'+
+  '<div class="row"><label for="bd">Bittiefe</label><select id="bd">'+bits.map(function(b,i){return '<option value="'+i+'"'+(i==0?' selected':'')+'>'+b[1]+'</option>'}).join('')+'</select></div>'+
+  '<canvas id="sndCv" width="520" height="200" aria-label="Schallwelle und digitalisierte Treppenkurve"></canvas>'+
+  '<div class="out" id="sndOut" style="margin-top:8px"></div>'+
+  '<p class="hint">Grau: ursprüngliche Schallwelle · Orange: digitalisierte Messwerte (Darstellung vereinfacht: Abstände und Stufen sind zur Veranschaulichung vergrößert).</p>'+
+  '<div class="row"><button class="btn" type="button" id="playTone">♪ Ton abspielen (440 Hz)</button></div>';
+  var cv=$('#sndCv',el),ctx=cv.getContext('2d');
+  var visN=[6,10,16,18,30], visL=[4,8,24,80];
+  function draw(){var ri=+$('#sr',el).value,bi=+$('#bd',el).value,W=cv.width,H=cv.height,cs=getComputedStyle(document.documentElement);
+    ctx.clearRect(0,0,W,H);
+    var f=function(t){return Math.sin(t*2*Math.PI*1.5)*0.75+Math.sin(t*2*Math.PI*4.5)*0.18};
+    ctx.strokeStyle=cs.getPropertyValue('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+    var L=visL[bi];ctx.globalAlpha=.25;for(var q=0;q<=L;q++){var yy=H/2-(q/L*2-1)*H*0.45;ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(W,yy);ctx.stroke()}ctx.globalAlpha=1;
+    ctx.strokeStyle=cs.getPropertyValue('--muted');ctx.lineWidth=2;ctx.beginPath();
+    for(var x=0;x<=W;x++){var y=H/2-f(x/W)*H*0.45;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();
+    var N=visN[ri]*1.5|0, acc=cs.getPropertyValue('--accent');ctx.strokeStyle=acc;ctx.fillStyle=acc;ctx.lineWidth=2.5;ctx.beginPath();
+    for(var i=0;i<=N;i++){var t=i/N,v=f(t),qv=Math.round((v+1)/2*L)/L*2-1;var px=t*W,py=H/2-qv*H*0.45;
+      if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);if(i<N)ctx.lineTo((i+1)/N*W,py)}
+    ctx.stroke();
+    for(i=0;i<=N;i++){t=i/N;v=f(t);qv=Math.round((v+1)/2*L)/L*2-1;ctx.beginPath();ctx.arc(t*W,H/2-qv*H*0.45,3.5,0,7);ctx.fill()}
+    var sr=rates[ri][0],bd=bits[bi][0],rate=sr*bd*2;
+    $('#sndOut',el).innerHTML=fmt(sr,0)+' Messungen/s × '+bd+' Bit × 2 Kanäle (Stereo) = <b>'+fmt(rate/1000,0)+' kBit/s</b><br>1 Minute Musik ≈ <b>'+fmt(rate*60/8/1e6,1)+' MB</b> (unkomprimiert) · eine CD fasst damit ca. '+fmt(700/(rate*60/8/1e6),0)+' Minuten';}
+  ['sr','bd'].forEach(function(id){$('#'+id,el).addEventListener('change',draw)});draw();
+  $('#playTone',el).addEventListener('click',function(){try{var A=window.AudioContext||window.webkitAudioContext,a=new A(),o=a.createOscillator(),g=a.createGain();o.frequency.value=440;g.gain.setValueAtTime(.15,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+1);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+1)}catch(e){}});
+};
+
+LABS.odd=function(el){
+  var media=[["CD",0.7,"1 Seite, 1 Schicht"],["DVD-5",4.7,"1 Seite, 1 Schicht"],["DVD-9",8.5,"1 Seite, 2 Schichten"],["DVD-10",9.4,"2 Seiten, je 1 Schicht"],["DVD-18",17,"2 Seiten, je 2 Schichten"],["Blu-ray",25,"1 Schicht (Nachfolger)"]];
+  el.innerHTML='<div class="labtitle">Vergleich: Wie viel passt auf eine Scheibe?</div>'+
+  '<div class="row"><label for="unit">Umrechnen in</label><select id="unit"><option value="0">Gigabyte</option><option value="0.004">Songs (MP3, je 4 MB)</option><option value="0.005">Fotos (je 5 MB)</option><option value="1.5">Spielfilme (je 1,5 GB)</option></select></div>'+
+  '<div id="discBars"></div>'+
+  '<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Rohling</th><th>Beschreibbar</th><th>Beispiel</th></tr></thead><tbody>'+
+  '<tr><td class="mono">-ROM</td><td>nur lesbar (gepresst)</td><td>Kauf-CD, Film-DVD</td></tr>'+
+  '<tr><td class="mono">-R / +R</td><td>einmal (Recordable)</td><td>CD-R, DVD-R, DVD+R</td></tr>'+
+  '<tr><td class="mono">-RW / +RW</td><td>mehrfach (ReWritable)</td><td>CD-RW, DVD-RW, DVD+RW</td></tr></tbody></table></div>'+
+  '<div class="row" style="margin-top:10px;gap:16px;font-size:.88rem"><span><b style="color:#e03131">●</b> CD: Infrarot-Laser 780 nm</span><span><b style="color:#f03e3e">●</b> DVD: roter Laser 650 nm</span><span><b style="color:#4263eb">●</b> Blu-ray: blau-violett 405 nm</span></div>'+
+  '<p class="hint">Je kürzer die Wellenlänge, desto kleiner der Laserpunkt – und desto dichter können die Daten gepackt werden.</p>';
+  function upd(){var u=+$('#unit',el).value,max=25;
+    $('#discBars',el).innerHTML=media.map(function(m){var v=u?m[1]/u:m[1],lbl=u?fmt(Math.floor(v),0):fmt(m[1])+' GB';
+      return '<div class="barrow"><span title="'+m[2]+'">'+m[0]+'</span><div class="bar"><i style="width:'+(m[1]/max*100)+'%;'+(m[0]==='CD'?'background:#e03131':m[0]==='Blu-ray'?'background:#4263eb':'')+'"></i></div><span class="out">'+lbl+'</span></div>'}).join('');}
+  $('#unit',el).addEventListener('change',upd);upd();
+};
+
+/* ---------- Datenfluss ---------- */
+var flowHost=$('#flowDiagramHost');
+var clone=svg.cloneNode(true);clone.id='pcFlow';clone.setAttribute('aria-label','Schaubild zum Datenfluss');
+$$('[id]',clone).forEach(function(n){if(n!==clone)n.id='f-'+n.id});
+$$('.comp',clone).forEach(function(g){g.removeAttribute('tabindex');g.removeAttribute('role');g.style.cursor='default'});
+flowHost.appendChild(clone);
+var STEPS=[
+ {t:"Doppelklick",d:"Du klickst auf ein Programm-Symbol. Maus/Tastatur melden das über USB an das Motherboard, die CPU verarbeitet das Ereignis.",c:["cpu","board"],tr:["t-cpu-chip"]},
+ {t:"Laden von der Festplatte",d:"Das Programm liegt dauerhaft auf der Festplatte. Die CPU beauftragt den Chipsatz, die Programmdateien zu lesen. Die Platte dreht sich, der Lesekopf sucht die Daten.",c:["hdd"],tr:["t-hdd-chip","t-cpu-chip"]},
+ {t:"Ab in den Arbeitsspeicher",d:"Über SATA und den Chipsatz wandern die Daten in den RAM. Nur von dort kann die CPU schnell genug darauf zugreifen.",c:["hdd","ram"],tr:["t-hdd-chip","t-chip-ram"]},
+ {t:"Die CPU arbeitet",d:"Die CPU holt Befehl für Befehl aus dem RAM, dekodiert und führt sie aus – Milliarden Mal pro Sekunde. Zwischenergebnisse landen wieder im RAM.",c:["cpu","ram"],tr:["t-ram-cpu"]},
+ {t:"Bild und Ton ausgeben",d:"Die CPU schickt Zeichenbefehle über PCIe an die Grafikkarte, deren GPU das Fensterbild für den Monitor berechnet. Ein Startgeräusch geht über die Soundkarte an die Lautsprecher.",c:["cpu","gpu","sound"],tr:["t-cpu-gpu","t-chip-snd","t-cpu-chip"]},
+ {t:"Speichern",d:"Beim Klick auf „Speichern“ wird dein Dokument aus dem flüchtigen RAM auf die Festplatte geschrieben – jetzt übersteht es auch das Ausschalten.",c:["ram","hdd"],tr:["t-chip-ram","t-hdd-chip"]}
+];
+var stepsBox=$('#steps'),cur=0,auto=null;
+STEPS.forEach(function(s,i){var li=document.createElement('li');li.innerHTML='<span class="n">'+(i+1)+'</span><div><b>'+s.t+'</b><span class="t">'+s.d+'</span></div>';li.addEventListener('click',function(){stopAuto();go(i)});stepsBox.appendChild(li)});
+function go(i){cur=i;var s=STEPS[i];
+  $$('li',stepsBox).forEach(function(li,k){li.classList.toggle('cur',k===i);li.classList.toggle('done',k<i)});
+  $$('.comp',clone).forEach(function(g){var on=s.c.indexOf(g.dataset.id)>-1;g.classList.toggle('active',on&&g.dataset.id!=='board');g.classList.toggle('dim',!on&&g.dataset.id!=='board')});
+  setTraces(clone,s.tr);
+  $('#prevStep').disabled=i===0;$('#nextStep').disabled=i===STEPS.length-1;}
+function stopAuto(){if(auto){clearInterval(auto);auto=null;$('#autoStep').textContent='▶ Automatisch'}}
+$('#prevStep').addEventListener('click',function(){stopAuto();if(cur>0)go(cur-1)});
+$('#nextStep').addEventListener('click',function(){stopAuto();if(cur<STEPS.length-1)go(cur+1)});
+$('#autoStep').addEventListener('click',function(){if(auto){stopAuto();return}
+  if(cur===STEPS.length-1)go(0);$('#autoStep').textContent='❚❚ Pause';
+  auto=setInterval(function(){if(cur<STEPS.length-1)go(cur+1);else stopAuto()},3200)});
+go(0);
+
+/* ---------- Menschenmaß ---------- */
+var hs=[["Register",0.5/80,"#c2255c"],["Cache",5/80,"#d9480f"],["RAM",1,"#e67700"],["SSD",100000/80,"#2b8a3e"],["Festplatte",10000000/80,"#1971c2"]];
+function human(s){if(s<1)return fmt(s*1000,0)+' Millisek.';if(s<60)return fmt(s,0)+' Sekunde'+(s>=1.5?'n':'');if(s<3600)return fmt(s/60,0)+' Minuten';if(s<86400)return fmt(s/3600,1)+' Stunden';return fmt(s/86400,1)+' Tage'}
+$('#humanScale').innerHTML=hs.map(function(h){var w=(Math.log10(h[1])+3)/(Math.log10(hs[4][1])+3)*100;
+  return '<div class="barrow"><span>'+h[0]+'</span><div class="bar"><i style="width:'+Math.max(3,w)+'%;background:'+h[2]+'"></i></div><span class="out">'+human(h[1])+'</span></div>'}).join('');
+
+/* ---------- Quiz ---------- */
+var Q=[
+ {q:"Welche Komponente interpretiert und führt die Programmbefehle aus?",o:["Arbeitsspeicher","Prozessor (CPU)","Chipsatz","Festplatte"],a:1,e:"Die CPU ist der Zentralprozessor: Sie führt Befehle aus und koordiniert alle Abläufe."},
+ {q:"In welcher Einheit wird die Taktfrequenz eines Prozessors angegeben?",o:["Gigabyte (GB)","Bit","Gigahertz (GHz)","Umdrehungen pro Minute"],a:2,e:"Die Taktfrequenz wird in MHz bzw. GHz gemessen. 1 GHz = 1 Milliarde Takte pro Sekunde."},
+ {q:"Was passiert mit dem Inhalt des Arbeitsspeichers, wenn der PC ausgeschaltet wird?",o:["Er wird automatisch auf die Festplatte kopiert","Er bleibt erhalten","Er geht verloren","Er wird auf die Grafikkarte verschoben"],a:2,e:"RAM ist flüchtig. Nur was auf der Festplatte (oder SSD) gespeichert wurde, bleibt erhalten."},
+ {q:"Der RAM ist voll. Was macht der Rechner?",o:["Er schaltet sich ab","Er lagert Daten als virtuellen Speicher auf die Festplatte aus","Er erhöht die Taktfrequenz","Er nutzt den Grafikspeicher als RAM"],a:1,e:"Er nutzt virtuellen Speicher auf der Festplatte. Weil diese viel langsamer ist, wird der Rechner träge, Videos ruckeln."},
+ {q:"Wozu dienen die Bussysteme auf dem Motherboard?",o:["Zur Stromversorgung","Zur Kühlung","Zur Datenübertragung zwischen den Komponenten","Zur Bildberechnung"],a:2,e:"Busse sind die Datenwege, z. B. zwischen RAM und CPU. Ihre Leistungsfähigkeit beeinflusst die Rechnergeschwindigkeit."},
+ {q:"Welche Schnittstelle hat AGP und PCI für Erweiterungskarten abgelöst?",o:["SATA","PCI-Express (PCIe)","USB","IDE"],a:1,e:"PCI-Express bietet sehr hohe Datenraten und ist heute Standard für Grafikkarten und schnelle SSDs."},
+ {q:"Über welche Schnittstelle werden interne Festplatten heute angeschlossen?",o:["Serial-ATA (SATA)","AGP","MIDI","Cinch"],a:0,e:"SATA hat die ältere parallele ATA-Schnittstelle (IDE/EIDE) abgelöst."},
+ {q:"Wie viele Umdrehungen pro Minute machen typische Festplatten?",o:["50–150","500–1.500","5.400–15.000","100.000"],a:2,e:"Die Magnetscheiben rotieren mit 5.400 bis 15.000 U/min."},
+ {q:"Wie viele Messungen pro Sekunde macht man bei einer Audio-CD (Samplingfrequenz)?",o:["16","8.000","44.100","1 Million"],a:2,e:"Die CD nutzt 44,1 kHz bei 16 Bit Auflösung – das gilt als HiFi-Qualität."},
+ {q:"Warum passt auf eine DVD mehr als auf eine CD?",o:["Sie dreht sich schneller","Größere Datendichte, bis zu zwei Schichten und ggf. beidseitig beschrieben","Sie ist magnetisch","Sie hat einen größeren Durchmesser"],a:1,e:"DVDs haben eine höhere Datendichte, bis zu zwei Layer und können beidseitig sein: 4,7 bis 17 GB statt 700 MB."}
+];
+var qi=0,res=[],qb=$('#quizBox');
+function renderQ(){
+  var prog='<div class="progress">'+Q.map(function(_,i){return '<i class="'+(res[i]===true?'r':res[i]===false?'w':i===qi?'c':'')+'"></i>'}).join('')+'</div>';
+  if(qi>=Q.length){var r=res.filter(Boolean).length;
+    qb.innerHTML=prog+'<div class="q">Geschafft! Du hast <b>'+r+' von '+Q.length+'</b> Fragen richtig beantwortet.</div><p>'+(r===Q.length?'Perfekt – du kennst dich im Rechner aus! 🎉':r>=7?'Sehr gut! Schau dir die falsch beantworteten Themen oben noch einmal an.':'Klicke oben noch einmal durch die Komponenten und versuche es erneut.')+'</p><button class="btn primary" id="qAgain" type="button">Noch einmal</button>';
+    $('#qAgain').addEventListener('click',function(){qi=0;res=[];renderQ()});return;}
+  var q=Q[qi];
+  qb.innerHTML=prog+'<div class="kicker">Frage '+(qi+1)+' von '+Q.length+'</div><div class="q">'+q.q+'</div><div class="opts">'+q.o.map(function(o,i){return '<button class="opt" type="button" data-i="'+i+'">'+o+'</button>'}).join('')+'</div><div class="fb" id="fb"></div>';
+  $$('.opt',qb).forEach(function(b){b.addEventListener('click',function(){
+    var i=+b.dataset.i,ok=i===q.a;res[qi]=ok;
+    $$('.opt',qb).forEach(function(x){x.disabled=true;if(+x.dataset.i===q.a)x.classList.add('right')});
+    if(!ok)b.classList.add('wrong');
+    $('#fb').innerHTML='<b>'+(ok?'Richtig! ':'Leider falsch. ')+'</b>'+q.e+'<div class="row"><button class="btn primary" id="qNext" type="button">'+(qi<Q.length-1?'Nächste Frage →':'Auswertung')+'</button></div>';
+    $('#qNext').addEventListener('click',function(){qi++;renderQ()});
+  })});
+}
+renderQ();
+})();
+</script>
+</body>
+</html>
